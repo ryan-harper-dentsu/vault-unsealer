@@ -1,42 +1,27 @@
 [![CircleCI](https://circleci.com/gh/tallpauley/vault-unsealer.svg?style=svg)](https://circleci.com/gh/tallpauley/vault-unsealer)
 # Vault Unsealer
 
-Work in Progress! I'll take this down once it's ready to go :)
+**Work in Progress! I'll take this down once it's ready to go :)**
 
-A daemon that keeps your [vault](https://vaultproject.io) unsealed
+A daemon that keeps your [Vault](https://vaultproject.io) unsealed. It's like having the required number of Vault admins always watching your Vault instance, ready to unseal it in a moment's notice.
 
 ## How it Works
-- users independently and securely insert the threshold of unseal keys into `vault-unsealer` daemon via a **https api** (much like unsealing vault itself)
-- `vault-unsealer` polls a vault instance for [seal status](https://www.vaultproject.io/api/system/seal-status.html)
+- Vault admins independently and securely insert the required threshold number of unseal keys into `vault-unsealer` daemon via a **https API** (much like unsealing vault itself)
+- `vault-unsealer` polls a Vault instance for [seal status](https://www.vaultproject.io/api/system/seal-status.html)
 - when `vault-unsealer` detects the instance is sealed, it uses the in-memory unseal keys to unseal the vault instance
 
-## Motivations
-- We want a vault instance (or cluster) to *always be unsealed*, even if *every instance* is restarted
-- We want an single vault instance to be relatively highly-available, without work of setting up an HA backend such as **consul** or **etcd**
-  - though `vault-unsealer` can be used for an HA vault setup too!
+## Use Cases
+- you want your single Vault instance to stay unsealed without the complications of managing an HA cluster
+- you run a single Vault instance or Vault HA cluster in a preemptible environment, and want to make sure your vault instances stay unsealed through instance deletion & recreation
 
 ## Tradeoffs
 You have to be willing to accept:
-- extra/alternate procedures to seal the vault such as:
-  - shutting down `vault-unsealer` instance(s) before sealing vault
-  - OR: we stop access to vault using an alternate method like destroying the instance(s) temporarily (works in a codified environment like Kubernetes)
-- vault unseal keys being stored in memory in `vault-unseal` instances
+- extra/alternate procedures to seal the vault (since vault-unsealer constantly unseals) such as:
+  - shutting down `vault-unsealer` daemon(s) before sealing Vault
+  - OR: we cut off access to Vault using an alternate method (like shutting down the Vault instance)
+- `vault-unsealer` polls on an interval and unseals a Vault instance accordingly-- you can't expect Vault to be unsealed 100% of the time, or immediate failover like when using an Vault HA storage backend
+- `vault-unsealer` itself loses it's unseal keys (in memory) when it restarts (like Vault), so ideally `vault-unsealer` runs somewhere where restarts are less frequent
 
 ## Security
-* Unseal keys are only in memory, transferred by secure `https`
-* Like **vault**, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk
-
-## Comparison to running Vault w/ HA backend
-Note: a primary motivating factor of writing **vault-unsealer** is running on Kubernetes in which it is normal for instances to die for a number of reasons (cluster upgrade, etc). This significantly influences the below comparison.
-
-| Feature                                          | Vault HA Cluster              | Single Vault w/ vault-unsealer
-| ------------------------------------------------ |:-----------------------------:| :-------------------------:|
-| behavior if ALL vault instances die              | no unsealed vault             | unsealed vault available shortly
-| failover time                                    | instant                | vault restart + Poll Interval + Unseal time
-
-If you want instant failover, and always unsealed vault instances, you can combine `vault-unsealer` with an HA backend
-
-## The Big Question
-**But `vault-unsealer` itself can be restarted too! Doesn't HA solve this?**
-
-Yes, but it is more lightweight & easier to distribute `vault-unsealer` daemons across datacenters than it is to maintain a resilient HA cluster backend. It can simply increase the unsealed uptime of a single vault instance or cluster.
+* Unseal keys are only in memory, inserted via `https` API
+* Like Vault, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk

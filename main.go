@@ -1,18 +1,23 @@
 package main
 
 import (
+	"bytes"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"github.com/howeyc/gopass"
 	"golang.org/x/sys/unix"
 
 	vault "github.com/hashicorp/vault/api"
@@ -85,35 +90,11 @@ func pollVault(pollingInterval int) {
 	}
 }
 
-func startServer(listenAddr string, certPath string, certKeyPath string) {
-	client, err := vault.NewClient(vault.DefaultConfig())
-	if err != nil {
-		log.Fatal(err)
-	}
-	sys := client.Sys()
-	status, err := sys.SealStatus()
-	if err != nil {
-		log.Fatal(err)
-	}
-	unsealThreshold = status.T
+func server() {
 
-	http.HandleFunc("/add-key", handlerAddKey)
-	http.HandleFunc("/status", handlerStatus)
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.Printf("vault-unsealer listening on %s", listenAddr)
-	log.Fatal(http.ServeTLS(listener, nil, certPath, certKeyPath))
-}
+	lockMemory()
 
-func main() {
-	// set up defaults
-	address := os.Getenv("LISTEN_ADDR")
-	if address == "" {
-		address = DefaultListenAddr
-	}
-
+	// REQUIRED ENV VARIABLES
 	certPath := os.Getenv("HTTPS_CERT")
 	if certPath == "" {
 		log.Fatal("HTTPS_CERT must be set")
@@ -122,6 +103,12 @@ func main() {
 	certKeyPath := os.Getenv("HTTPS_CERT_KEY")
 	if certKeyPath == "" {
 		log.Fatal("HTTPS_CERT_KEY must be set")
+	}
+
+	// OPTIONAL ENV VARIABLES
+	listenAddr := os.Getenv("LISTEN_ADDR")
+	if listenAddr == "" {
+		listenAddr = DefaultListenAddr
 	}
 
 	pollingInterval := DefaultPollingInterval
@@ -134,17 +121,118 @@ func main() {
 		}
 	}
 
-	lockMemory()
+	client, err := vault.NewClient(vault.DefaultConfig())
+	if err != nil {
+		log.Fatal(err)
+	}
+	sys := client.Sys()
+	status, err := sys.SealStatus()
+	if err != nil {
+		log.Fatal(err)
+	}
+	unsealThreshold = status.T
+	go startServer(listenAddr, certPath, certKeyPath)
+	pollVault(pollingInterval)
+}
+
+func startServer(listenAddr string, certPath string, certKeyPath string) {
+
+	http.HandleFunc("/add-key", handlerAddKey)
+	http.HandleFunc("/status", handlerStatus)
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Printf("vault-unsealer listening on %s", listenAddr)
+	log.Fatal(http.ServeTLS(listener, nil, certPath, certKeyPath))
+}
+
+// client function to add an unseal key to a server
+func addKey(skipHostVerification bool) {
+
+	fmt.Printf("Enter Unseal Key: ")
+
+	// Silent. For printing *'s use gopass.GetPasswdMasked()
+	unsealKey, err := gopass.GetPasswd()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipHostVerification},
+	}
+	client := &http.Client{Transport: tr}
+
+	url := getFullURL("/add-key")
+	resp, err := client.Post(url, "text/plain", bytes.NewReader(unsealKey))
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	response, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf(string(response))
+}
+
+// client function to get status from a server
+func status(skipHostVerification bool) {
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: skipHostVerification},
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Get(getFullURL("/status"))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	response, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf(string(response))
+}
+
+// helper function to get VAULT_UNSEALER_ADDR and join w/ a relative URL
+func getFullURL(relativePath string) string {
+	serverAddr := os.Getenv("VAULT_UNSEALER_ADDR")
+	if serverAddr == "" {
+		fmt.Fprintln(os.Stderr, "VAULT_UNSEALER_ADDR must be set")
+		os.Exit(1)
+	}
+
+	u, err := url.Parse(serverAddr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	u.Path = path.Join(u.Path, relativePath)
+	return u.String()
+}
+
+func main() {
 
 	serverModePointer := flag.Bool("server", false, "start a vault-unsealer server")
-	clientModePointer := flag.Bool("add-key", false, "securely send an unseal key to a vault-unsealer server")
+	addKeyPointer := flag.Bool("add-key", false, "securely send an unseal key to a vault-unsealer server")
+	statusPointer := flag.Bool("status", false, "view status of a vault-unsealer server")
+	skipHostVerificationPointer := flag.Bool("skip-host-verification", false, "disable certificate check for client commands (FOR TESTING ONLY)")
 	flag.Parse()
 
 	if *serverModePointer == true {
-		go startServer(address, certPath, certKeyPath)
-		pollVault(pollingInterval)
-	} else if *clientModePointer == true {
-		fmt.Println("client stuff here!")
+		server()
+	} else if *addKeyPointer == true {
+		addKey(*skipHostVerificationPointer)
+	} else if *statusPointer == true {
+		status(*skipHostVerificationPointer)
 	} else {
 		flag.Usage()
 		os.Exit(1)

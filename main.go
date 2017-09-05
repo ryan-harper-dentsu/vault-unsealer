@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -16,7 +17,8 @@ import (
 )
 
 const (
-	ListenAddr string = ":443"
+	DefaultListenAddr      string = ":443"
+	DefaultPollingInterval int    = 1
 )
 
 // borrowed from https://github.com/hashicorp/vault/blob/24d2f39a7fd9f637fe745a107a2580eb891f0fb1/helper/mlock/mlock_unix.go
@@ -56,7 +58,7 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d of %d required unseal keys", len(unsealKeys), unsealThreshold)
 }
 
-func startServer(listenAddr string, certPath string, certKeyPath string) {
+func startServer(listenAddr string, certPath string, certKeyPath string, pollingInterval int) {
 	lockMemory()
 	client, err := vault.NewClient(vault.DefaultConfig())
 	if err != nil {
@@ -89,7 +91,7 @@ func startServer(listenAddr string, certPath string, certKeyPath string) {
 		} else {
 			log.Println(err)
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Duration(pollingInterval) * time.Second)
 	}
 }
 
@@ -97,7 +99,7 @@ func main() {
 	// set up defaults
 	address := os.Getenv("LISTEN_ADDR")
 	if address == "" {
-		address = ListenAddr
+		address = DefaultListenAddr
 	}
 
 	certPath := os.Getenv("HTTPS_CERT")
@@ -110,5 +112,15 @@ func main() {
 		log.Fatal("HTTPS_CERT_KEY must be set")
 	}
 
-	startServer(address, certPath, certKeyPath)
+	pollingInterval := DefaultPollingInterval
+	if os.Getenv("POLLING_INTERVAL") != "" {
+		var err error
+		pollingInterval, err = strconv.Atoi(os.Getenv("POLLING_INTERVAL"))
+
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	startServer(address, certPath, certKeyPath, pollingInterval)
 }

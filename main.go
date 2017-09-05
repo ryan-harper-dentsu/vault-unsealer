@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -58,24 +59,12 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d of %d required unseal keys", len(unsealKeys), unsealThreshold)
 }
 
-func startServer(listenAddr string, certPath string, certKeyPath string, pollingInterval int) {
-	lockMemory()
+func pollVault(pollingInterval int) {
 	client, err := vault.NewClient(vault.DefaultConfig())
 	if err != nil {
 		log.Fatal(err)
 	}
 	sys := client.Sys()
-	status, err := sys.SealStatus()
-	if err != nil {
-		log.Fatal(err)
-	}
-	unsealThreshold = status.T
-
-	http.HandleFunc("/add-key", handlerAddKey)
-	http.HandleFunc("/status", handlerStatus)
-	go http.ListenAndServeTLS(listenAddr, certPath, certKeyPath, nil)
-	log.Printf("vault-unsealer up and running on %s", listenAddr)
-
 	for {
 		status, err := sys.SealStatus()
 		if err == nil {
@@ -93,6 +82,28 @@ func startServer(listenAddr string, certPath string, certKeyPath string, polling
 		}
 		time.Sleep(time.Duration(pollingInterval) * time.Second)
 	}
+}
+
+func startServer(listenAddr string, certPath string, certKeyPath string) {
+	client, err := vault.NewClient(vault.DefaultConfig())
+	if err != nil {
+		log.Fatal(err)
+	}
+	sys := client.Sys()
+	status, err := sys.SealStatus()
+	if err != nil {
+		log.Fatal(err)
+	}
+	unsealThreshold = status.T
+
+	http.HandleFunc("/add-key", handlerAddKey)
+	http.HandleFunc("/status", handlerStatus)
+	listener, err := net.Listen("tcp", listenAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("vault-unsealer listening on %s", listenAddr)
+	log.Fatal(http.ServeTLS(listener, nil, certPath, certKeyPath))
 }
 
 func main() {
@@ -122,5 +133,7 @@ func main() {
 		}
 	}
 
-	startServer(address, certPath, certKeyPath, pollingInterval)
+	lockMemory()
+	go startServer(address, certPath, certKeyPath)
+	pollVault(pollingInterval)
 }

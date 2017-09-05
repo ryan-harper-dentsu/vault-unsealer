@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -134,6 +135,18 @@ func main() {
 	}
 
 	lockMemory()
-	go startServer(address, certPath, certKeyPath)
-	pollVault(pollingInterval)
+
+	serverModePointer := flag.Bool("server", false, "start a vault-unsealer server")
+	clientModePointer := flag.Bool("add-key", false, "securely send an unseal key to a vault-unsealer server")
+	flag.Parse()
+
+	if *serverModePointer == true {
+		go startServer(address, certPath, certKeyPath)
+		pollVault(pollingInterval)
+	} else if *clientModePointer == true {
+		fmt.Println("client stuff here!")
+	} else {
+		flag.Usage()
+		os.Exit(1)
+	}
 }

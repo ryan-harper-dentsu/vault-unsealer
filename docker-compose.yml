@@ -17,7 +17,7 @@ services:
     entrypoint: ["sh", "-c", "sleep 2 && vault init; tail -f /dev/null"]
     environment:
       VAULT_ADDR: http://vault-server:8200
-  vault-unsealer:
+  vault-unsealer-first:
     build: .
     entrypoint: ["sh", "-c", "sleep 4 && go-wrapper run -server"]
     ports:
@@ -32,3 +32,20 @@ services:
       HTTPS_CERT_KEY: /artifacts/dev-key.pem
       LISTEN_ADDR: 0.0.0.0:443
       VAULT_ADDR: http://vault-server:8200
+      ROOT_TOKEN_TEST: "true"
+  vault-unsealer-second:
+    build: .
+    entrypoint: ["sh", "-c", "sleep 4 && go-wrapper run -server"]
+    ports:
+      - "8444:443"
+    links:
+      - vault-server
+    volumes:
+      - ./artifacts:/artifacts
+      - .:/app
+    environment:
+      HTTPS_CERT: /artifacts/dev-cert.pem
+      HTTPS_CERT_KEY: /artifacts/dev-key.pem
+      LISTEN_ADDR: 0.0.0.0:443
+      VAULT_ADDR: http://vault-server:8200
+      ROOT_TOKEN_TEST: "true"

@@ -20,13 +20,19 @@ import (
 	"github.com/howeyc/gopass"
 	"golang.org/x/sys/unix"
 
+	uuid "github.com/hashicorp/go-uuid"
 	vault "github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/helper/xor"
 )
 
 const (
 	DefaultListenAddr      string = ":443"
 	DefaultPollingInterval int    = 1
 )
+
+var unsealKeys []string
+var unsealThreshold int
+var rootGenerationTested bool
 
 // borrowed from https://github.com/hashicorp/vault/blob/24d2f39a7fd9f637fe745a107a2580eb891f0fb1/helper/mlock/mlock_unix.go
 func lockMemory() {
@@ -36,9 +42,6 @@ func lockMemory() {
 		log.Printf("Failed to lock memory! Do not use for production as unseal keys could be written to swap space!")
 	}
 }
-
-var unsealKeys []string
-var unsealThreshold int
 
 func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	if len(unsealKeys) < unsealThreshold {
@@ -65,27 +68,101 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "%d of %d required unseal keys", len(unsealKeys), unsealThreshold)
 }
 
-func pollVault(pollingInterval int) {
+func tryGenerateRootToken() error {
+	client, err := vault.NewClient(vault.DefaultConfig())
+	sys := client.Sys()
+
+	defer sys.GenerateRootCancel()
+
+	// we use a generic OTP since the user will never see the token anyway
+	// the token will be shortly thrown away
+	otp := "G7gXEUyq+mguoMF7vq/xJw=="
+	status, err := sys.GenerateRootInit(otp, "")
+	if err != nil {
+		return err
+	}
+
+	for num, unsealKey := range unsealKeys {
+		log.Printf("Testing vault root token generation w/ unseal key #%d", num+1)
+		var err error
+		status, err = sys.GenerateRootUpdate(unsealKey, status.Nonce)
+		if err != nil {
+			return err
+		}
+	}
+
+	// we need to decode the token w/ the OTP
+	// https://github.com/hashicorp/vault/blob/master/command/generate-root.go
+	tokenBytes, err := xor.XORBase64(status.EncodedRootToken, otp)
+	if err != nil {
+		return err
+	}
+
+	rootToken, err := uuid.FormatUUID(tokenBytes)
+	if err != nil {
+		return fmt.Errorf("Error formatting base64 token value: %v", err)
+	}
+
+	// revoke the root token w/ revoke-self
+	rootTokenClient, err := vault.NewClient(vault.DefaultConfig())
+	if err != nil {
+		return err
+	}
+	rootTokenClient.SetToken(rootToken)
+	rootTokenClient.Auth().Token().RevokeSelf(rootToken)
+	if err != nil {
+		return err
+	}
+
+	rootGenerationTested = true
+	log.Println("successfullly tested unseal keys by generating & destroying a root token")
+	return nil
+}
+
+func pollVault(pollingInterval int, tryGenerateRoot bool) {
+
+	rootGenerationTested = false
+
 	client, err := vault.NewClient(vault.DefaultConfig())
 	if err != nil {
 		log.Fatal(err)
 	}
 	sys := client.Sys()
+
 	for {
+		// not enough unseal keys to do anything yet
+		if len(unsealKeys) != unsealThreshold {
+			continue
+		}
+
+		// error talking to vault, log and move on
 		status, err := sys.SealStatus()
-		if err == nil {
-			if status.Sealed == true && len(unsealKeys) == unsealThreshold {
-				for num, unsealKey := range unsealKeys {
-					log.Printf("Unsealing vault w/ unseal key #%d", num+1)
-					_, err := sys.Unseal(unsealKey)
-					if err != nil {
-						log.Println(err)
-					}
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		if status.Sealed == false {
+			// if vault isn't sealed, we can optionally check the unseal keys work by generating root token
+			if tryGenerateRoot && !rootGenerationTested {
+				err := tryGenerateRootToken()
+				if err != nil {
+					log.Fatalln(err)
 				}
 			}
 		} else {
-			log.Println(err)
+			// TODO have a max retry policy if this happens repeatedly
+			log.Println("Attempting to unseal vault (if this happens repeatedly a key is incorrect or repeated")
+			for num, unsealKey := range unsealKeys {
+				log.Printf("Unsealing vault w/ unseal key #%d", num+1)
+				_, err := sys.Unseal(unsealKey)
+				if err != nil {
+					log.Fatalln(err)
+				}
+			}
+
 		}
+
 		time.Sleep(time.Duration(pollingInterval) * time.Second)
 	}
 }
@@ -111,6 +188,18 @@ func server() {
 		listenAddr = DefaultListenAddr
 	}
 
+	// option to generate a root token and destroy it immediately after to
+	// test that the unseal keys work
+	var tryGenerateRoot bool
+	tryGenerateRootString := os.Getenv("ROOT_TOKEN_TEST")
+	if tryGenerateRootString != "" {
+		var err error
+		tryGenerateRoot, err = strconv.ParseBool(tryGenerateRootString)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	pollingInterval := DefaultPollingInterval
 	if os.Getenv("POLLING_INTERVAL") != "" {
 		var err error
@@ -132,7 +221,7 @@ func server() {
 	}
 	unsealThreshold = status.T
 	go startServer(listenAddr, certPath, certKeyPath)
-	pollVault(pollingInterval)
+	pollVault(pollingInterval, tryGenerateRoot)
 }
 
 func startServer(listenAddr string, certPath string, certKeyPath string) {
@@ -221,10 +310,13 @@ func getFullURL(relativePath string) string {
 
 func main() {
 
+	// logs: print line number
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
 	serverModePointer := flag.Bool("server", false, "start a vault-unsealer server")
 	addKeyPointer := flag.Bool("add-key", false, "securely send an unseal key to a vault-unsealer server")
 	statusPointer := flag.Bool("status", false, "view status of a vault-unsealer server")
-	skipHostVerificationPointer := flag.Bool("skip-host-verification", false, "disable certificate check for client commands (FOR TESTING ONLY)")
+	skipHostVerificationPointer := flag.Bool("skip-host-verification", false, "disable TLS certificate check for client commands (FOR TESTING PURPOSES ONLY)")
 	flag.Parse()
 
 	if *serverModePointer == true {

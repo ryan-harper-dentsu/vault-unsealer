@@ -1,4 +1,3 @@
-[![CircleCI](https://circleci.com/gh/tallpauley/vault-unsealer.svg?style=svg)](https://circleci.com/gh/tallpauley/vault-unsealer)
 # Vault Unsealer
 
 **Work in Progress! I'll take this down once it's ready to go :)**

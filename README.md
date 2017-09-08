@@ -61,9 +61,23 @@ vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal 
 docker-compose restart vault-server
 ```
 
-## Configuration
-### Server
-##### Environment variables:
+## Usage
+```
+$ vault-unsealer -help
+Usage of vault-unsealer:
+  -add-key
+    	securely send an unseal key to a vault-unsealer server
+  -server
+    	start a vault-unsealer server
+  -skip-host-verification
+    	disable TLS certificate check for client commands (FOR TESTING PURPOSES ONLY)
+  -status
+    	view status of a vault-unsealer server
+  -version
+    	show version
+```
+
+### Server configuration (env variables)
 
 `HTTPS_CERT` (required): path to PEM-encoded x509 certificate.
 
@@ -75,10 +89,10 @@ docker-compose restart vault-server
 
 `ROOT_TOKEN_TEST` (optional): Optionally, a root token can be generated and destroyed immediately after to check if the unseal keys are valid. Values are `true` or `false`. Default is `false`.
 
-### Client
-##### Environment variables
+### Client configuration (env variables)
 
 `VAULT_UNSEALER_ADDR`: Hostname and port of vault-unsealer server/daemon. Such as `https://localhost:8443`.
+
 
 ## Tradeoffs
 You have to be willing to accept:

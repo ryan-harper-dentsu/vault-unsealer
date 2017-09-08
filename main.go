@@ -14,19 +14,18 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/howeyc/gopass"
-	"golang.org/x/sys/unix"
 
 	uuid "github.com/hashicorp/go-uuid"
 	vault "github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/helper/mlock"
 	"github.com/hashicorp/vault/helper/xor"
 )
 
 const (
-	Version                string = "0.1"
+	Version                string = "v0.1-alpha"
 	DefaultListenAddr      string = ":443"
 	DefaultPollingInterval int    = 1
 )
@@ -34,15 +33,6 @@ const (
 var unsealKeys []string
 var unsealThreshold int
 var rootGenerationTested bool
-
-// borrowed from https://github.com/hashicorp/vault/blob/24d2f39a7fd9f637fe745a107a2580eb891f0fb1/helper/mlock/mlock_unix.go
-func lockMemory() {
-	// Mlockall prevents all current and future pages from being swapped out.
-	err := unix.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
-	if err != nil {
-		log.Printf("Failed to lock memory! Do not use for production as unseal keys could be written to swap space!")
-	}
-}
 
 func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	if len(unsealKeys) < unsealThreshold {
@@ -170,7 +160,7 @@ func pollVault(pollingInterval int, tryGenerateRoot bool) {
 
 func server() {
 
-	lockMemory()
+	mlock.LockMemory()
 
 	// REQUIRED ENV VARIABLES
 	certPath := os.Getenv("HTTPS_CERT")

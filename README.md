@@ -60,7 +60,7 @@ vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal 
 
 ## Configuration
 ### Server
-**Environment variables:**
+##### Environment variables:
 
 `HTTPS_CERT` (required): path to PEM-encoded x509 certificate.
 
@@ -73,7 +73,8 @@ vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal 
 `ROOT_TOKEN_TEST` (optional): Optionally, a root token can be generated and destroyed immediately after to check if the unseal keys are valid. Values are `true` or `false`. Default is `false`.
 
 ### Client
-**Environment Variables**
+##### Environment variables
+
 `VAULT_UNSEALER_ADDR`: Hostname and port of vault-unsealer server/daemon. Such as `https://localhost:8443`.
 
 ## Tradeoffs

@@ -6,7 +6,8 @@ RELEASE_DESCRIPTION :=
 PRE_RELEASE := true
 
 .PHONY: build
-build:
+install:
+	go get .
 	go install
 
 .PHONY: build-dev

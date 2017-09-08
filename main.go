@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	Version                string = "0.1"
 	DefaultListenAddr      string = ":443"
 	DefaultPollingInterval int    = 1
 )
@@ -290,6 +291,10 @@ func status(skipHostVerification bool) {
 	fmt.Printf(string(response))
 }
 
+func version() {
+	fmt.Println(Version)
+}
+
 // helper function to get VAULT_UNSEALER_ADDR and join w/ a relative URL
 func getFullURL(relativePath string) string {
 	serverAddr := os.Getenv("VAULT_UNSEALER_ADDR")
@@ -316,6 +321,7 @@ func main() {
 	serverModePointer := flag.Bool("server", false, "start a vault-unsealer server")
 	addKeyPointer := flag.Bool("add-key", false, "securely send an unseal key to a vault-unsealer server")
 	statusPointer := flag.Bool("status", false, "view status of a vault-unsealer server")
+	versionPointer := flag.Bool("version", false, "show version")
 	skipHostVerificationPointer := flag.Bool("skip-host-verification", false, "disable TLS certificate check for client commands (FOR TESTING PURPOSES ONLY)")
 	flag.Parse()
 
@@ -325,6 +331,8 @@ func main() {
 		addKey(*skipHostVerificationPointer)
 	} else if *statusPointer == true {
 		status(*skipHostVerificationPointer)
+	} else if *versionPointer == true {
+		version()
 	} else {
 		flag.Usage()
 		os.Exit(1)

@@ -57,6 +57,9 @@ vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal 
 ```
 
 5. Restart the vault container and notice how vault is automatically unsealed!
+```
+docker-compose restart vault-server
+```
 
 ## Configuration
 ### Server

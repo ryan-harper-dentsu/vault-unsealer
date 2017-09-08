@@ -15,6 +15,7 @@ build-dc:
 
 .PHONY:
 publish-release: 
+	@rm -rf release
 	@go get github.com/mitchellh/gox github.com/aktau/github-release
 	git tag ${VERSION} || true
 	git push --tags
@@ -32,13 +33,13 @@ publish-release:
 	$$pre_release_arg
 	@gox -output "release/{{.Dir}}_{{.OS}}_{{.Arch}}/{{.Dir}}"
 	@for f in release/*; do \
-		zip -r $$f.zip $$f; \
+		zip -j -r $$f.zip $$f; \
 		github-release upload \
 			--user tallpauley \
 			--repo vault-unsealer \
 			--tag ${VERSION} \
-			--name "$$(basename $$f)" \
-			--file $$f.zip \
+			--name "$$f.zip" \
+			--file $$f.zip; \
 	done
 
 # Self-signed certs are only for testing!

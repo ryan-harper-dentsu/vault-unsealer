@@ -80,7 +80,7 @@ Usage of vault-unsealer:
 
 ### Server configuration (env variables)
 
-`VAULT_ADDR` (required): The address of the Vault server expressed as a URL and port, for example: `http://127.0.0.1:8200`
+`VAULT_ADDR` (required): The address of the Vault server expressed as a URL and port, for example: `http://vault-host:8200`
 
 `HTTPS_CERT` (required): path to PEM-encoded x509 certificate.
 

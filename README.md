@@ -1,4 +1,5 @@
-# Vault Unsealer
+
+# Vault Unsealer [![Docker Build Status](https://img.shields.io/docker/build/tallpauley/vault-unsealer.svg)]()
 
 A daemon that keeps your [Vault](https://vaultproject.io) unsealed. It's like having the required number of Vault admins always watching your Vault instance, ready to unseal it in a moment's notice.
 

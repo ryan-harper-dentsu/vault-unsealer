@@ -25,22 +25,33 @@ import (
 )
 
 const (
-	Version                string = "v0.1-alpha"
-	DefaultListenAddr      string = ":443"
-	DefaultPollingInterval int    = 1
+	// DefaultListenAddr is the default address for TCP listener
+	DefaultListenAddr string = ":443"
+	// DefaultPollingInterval is the number of seconds between polling vault
+	DefaultPollingInterval int = 1
 )
 
+// Version is the version of the server/client. to be passed using -ldflags "-X main.Version 1.5"
+var Version = "No version specified"
+
+// unsealKeys is a global variable that stores the unseal keys inserted into vault-unsealer server
 var unsealKeys []string
+
+// unsealThreshold is a global variable that is populated wi
 var unsealThreshold int
+
+// rootGenerationTested is a variable to track whether the unseal keys have been tested by generating and destroying a root token
 var rootGenerationTested bool
 
-func Log(handler http.Handler) http.Handler {
+// logHTTP wraps an http handler to log requests
+func logHTTP(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
 		handler.ServeHTTP(w, r)
 	})
 }
 
+// handlerStatus is an HTTP handler that returns 200 if unsealed, or returns HTTP Internal Server Error
 func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	if len(unsealKeys) < unsealThreshold {
 		http.Error(w, fmt.Sprintf("%d of %d required unseal keys. Requirement not met", len(unsealKeys), unsealThreshold), http.StatusInternalServerError)
@@ -50,6 +61,7 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, fmt.Sprintf("%d of %d required unseal keys. Ready to unseal!", len(unsealKeys), unsealThreshold), http.StatusInternalServerError)
 }
 
+// handlerAddKey is an HTTP handler that accepts a payload of an unseal key
 func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 	contents, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -62,10 +74,12 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO unseal keys is probably not synchronized, slight chance of race condition in key insertion
 	unsealKeys = append(unsealKeys, strings.TrimSpace(unsealKey))
 	fmt.Fprintf(w, "%d of %d required unseal keys", len(unsealKeys), unsealThreshold)
 }
 
+// tryGenerateRootToken tries to create a root token and destroy it, to test that unseal keys actually work
 func tryGenerateRootToken() error {
 	client, err := vault.NewClient(vault.DefaultConfig())
 	sys := client.Sys()
@@ -117,56 +131,47 @@ func tryGenerateRootToken() error {
 	return nil
 }
 
-func pollVault(pollingInterval int, tryGenerateRoot bool) {
+// pollVault attempts to unseal vault, if vault is sealed and the minimum number of unseal keys are present
+func pollVault(client *vault.Client, tryGenerateRoot bool) {
 
 	rootGenerationTested = false
 
-	client, err := vault.NewClient(vault.DefaultConfig())
-	if err != nil {
-		log.Fatal(err)
-	}
 	sys := client.Sys()
 
-	for {
-		// not enough unseal keys to do anything yet
-		if len(unsealKeys) != unsealThreshold {
-			time.Sleep(time.Duration(pollingInterval) * time.Second)
-			continue
-		}
+	// not enough unseal keys to do anything yet
+	if len(unsealKeys) != unsealThreshold {
+		return
+	}
 
-		// error talking to vault, log and move on
-		status, err := sys.SealStatus()
-		if err != nil {
-			log.Println(err)
-			time.Sleep(time.Duration(pollingInterval) * time.Second)
-			continue
-		}
+	// error talking to vault, log and move on
+	status, err := sys.SealStatus()
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
-		if status.Sealed == false {
-			// if vault isn't sealed, we can optionally check the unseal keys work by generating root token
-			if tryGenerateRoot && !rootGenerationTested {
-				err := tryGenerateRootToken()
-				if err != nil {
-					log.Fatalln(err)
-				}
+	if status.Sealed == false {
+		// if vault isn't sealed, we can optionally check the unseal keys work by generating root token
+		if tryGenerateRoot && !rootGenerationTested {
+			err := tryGenerateRootToken()
+			if err != nil {
+				log.Fatalln(err)
 			}
-		} else {
-			// TODO have a max retry policy if this happens repeatedly
-			log.Println("Attempting to unseal vault (if this happens repeatedly a key is incorrect or repeated")
-			for num, unsealKey := range unsealKeys {
-				log.Printf("Unsealing vault w/ unseal key #%d", num+1)
-				_, err := sys.Unseal(unsealKey)
-				if err != nil {
-					log.Fatalln(err)
-				}
-			}
-
 		}
-
-		time.Sleep(time.Duration(pollingInterval) * time.Second)
+	} else {
+		// TODO have a max retry policy if this happens repeatedly
+		log.Println("Attempting to unseal vault (if this happens repeatedly a key is incorrect or repeated)")
+		for num, unsealKey := range unsealKeys {
+			log.Printf("Unsealing vault w/ unseal key #%d", num+1)
+			_, err := sys.Unseal(unsealKey)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}
 	}
 }
 
+// server starts the vault-unsealer server and polling process
 func server() {
 
 	if mlock.Supported() {
@@ -225,9 +230,14 @@ func server() {
 	}
 	unsealThreshold = status.T
 	go startServer(listenAddr, certPath, certKeyPath)
-	pollVault(pollingInterval, tryGenerateRoot)
+
+	for {
+		pollVault(client, tryGenerateRoot)
+		time.Sleep(time.Duration(pollingInterval) * time.Second)
+	}
 }
 
+// startServer starts the HTTPS server
 func startServer(listenAddr string, certPath string, certKeyPath string) {
 
 	http.HandleFunc("/add-key", handlerAddKey)
@@ -238,16 +248,15 @@ func startServer(listenAddr string, certPath string, certKeyPath string) {
 	}
 
 	log.Printf("vault-unsealer listening on %s", listenAddr)
-	log.Fatal(http.ServeTLS(listener, Log(http.DefaultServeMux), certPath, certKeyPath))
+	log.Fatal(http.ServeTLS(listener, logHTTP(http.DefaultServeMux), certPath, certKeyPath))
 }
 
-// client function to add an unseal key to a server
+// addKey is a client function that prompts for an unseal key and posts it to a vault-unsealer server
 func addKey(skipHostVerification bool) {
 
 	fmt.Printf("Enter Unseal Key: ")
 
-	// Silent. For printing *'s use gopass.GetPasswdMasked()
-	unsealKey, err := gopass.GetPasswd()
+	unsealKey, err := gopass.GetPasswdMasked()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -273,7 +282,7 @@ func addKey(skipHostVerification bool) {
 	fmt.Printf(string(response))
 }
 
-// client function to get status from a server
+// status is a client function that queries for status of the vault-unsealer server
 func status(skipHostVerification bool) {
 
 	tr := &http.Transport{
@@ -294,6 +303,7 @@ func status(skipHostVerification bool) {
 	fmt.Printf(string(response))
 }
 
+// version prints version of the binary
 func version() {
 	fmt.Println(Version)
 }

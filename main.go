@@ -130,6 +130,7 @@ func pollVault(pollingInterval int, tryGenerateRoot bool) {
 	for {
 		// not enough unseal keys to do anything yet
 		if len(unsealKeys) != unsealThreshold {
+			time.Sleep(time.Duration(pollingInterval) * time.Second)
 			continue
 		}
 
@@ -137,6 +138,7 @@ func pollVault(pollingInterval int, tryGenerateRoot bool) {
 		status, err := sys.SealStatus()
 		if err != nil {
 			log.Println(err)
+			time.Sleep(time.Duration(pollingInterval) * time.Second)
 			continue
 		}
 

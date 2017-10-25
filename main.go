@@ -34,6 +34,13 @@ var unsealKeys []string
 var unsealThreshold int
 var rootGenerationTested bool
 
+func Log(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+		handler.ServeHTTP(w, r)
+	})
+}
+
 func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	if len(unsealKeys) < unsealThreshold {
 		http.Error(w, fmt.Sprintf("%d of %d required unseal keys. Requirement not met", len(unsealKeys), unsealThreshold), http.StatusInternalServerError)
@@ -160,7 +167,11 @@ func pollVault(pollingInterval int, tryGenerateRoot bool) {
 
 func server() {
 
-	mlock.LockMemory()
+	if mlock.Supported() {
+		mlock.LockMemory()
+	} else {
+		log.Println("Unable to lock memory! Unseal keys could be swapped to disk!")
+	}
 
 	// REQUIRED ENV VARIABLES
 	certPath := os.Getenv("HTTPS_CERT")
@@ -225,7 +236,7 @@ func startServer(listenAddr string, certPath string, certKeyPath string) {
 	}
 
 	log.Printf("vault-unsealer listening on %s", listenAddr)
-	log.Fatal(http.ServeTLS(listener, nil, certPath, certKeyPath))
+	log.Fatal(http.ServeTLS(listener, Log(http.DefaultServeMux), certPath, certKeyPath))
 }
 
 // client function to add an unseal key to a server

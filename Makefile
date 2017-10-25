@@ -5,16 +5,16 @@ RELEASE_NAME := ${VERSION}
 RELEASE_DESCRIPTION :=
 PRE_RELEASE := true
 
-.PHONY: build
+.PHONY: install
 install:
 	go get .
 	go install
 
-.PHONY: build-dev
+.PHONY: build-dc
 build-dc:
 	docker-compose build --no-cache
 
-.PHONY:
+.PHONY: publish-release
 publish-release: 
 	@rm -rf release
 	@go get github.com/mitchellh/gox github.com/aktau/github-release
@@ -48,6 +48,6 @@ publish-release:
 certs:
 	openssl req -x509 -nodes -newkey rsa:4096 -keyout artifacts/dev-key.pem -out artifacts/dev-cert.pem -days 1000000
 
-.PHONY: run-docker
+.PHONY: run-dc
 run-dc: 
 	docker-compose up

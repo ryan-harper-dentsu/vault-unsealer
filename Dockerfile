@@ -1,8 +1,24 @@
+# Multi-stage build (requires Docker 17.05 or greater)
+# for first stage of canary container, we just build the binary
 FROM golang:1.9
 
 WORKDIR /go/src/app
-COPY main.go .
+ADD main.go .
 
 RUN go-wrapper download
-RUN go-wrapper install
+RUN CGO_ENABLED=0 go build -v 
+
 CMD ["go-wrapper", "run"]
+
+# second stage is just copy the binary from the first stage
+FROM alpine:3.6
+WORKDIR /
+
+RUN apk update && apk add --no-cache ca-certificates
+
+COPY --from=0 /go/src/app/app /vault-unsealer
+RUN chmod +x /vault-unsealer
+
+EXPOSE 443
+
+CMD ["/vault-unsealer"]

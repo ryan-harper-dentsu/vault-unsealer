@@ -20,3 +20,4 @@ RUN chmod +x /vault-unsealer
 EXPOSE 443
 
 ENTRYPOINT ["/vault-unsealer"]
+CMD ["-server"]

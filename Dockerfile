@@ -8,8 +8,6 @@ ADD main.go .
 RUN go-wrapper download
 RUN CGO_ENABLED=0 go build -v 
 
-CMD ["go-wrapper", "run"]
-
 # second stage is just copy the binary from the first stage
 FROM alpine:3.6
 WORKDIR /
@@ -21,4 +19,4 @@ RUN chmod +x /vault-unsealer
 
 EXPOSE 443
 
-CMD ["/vault-unsealer"]
+ENTRYPOINT ["/vault-unsealer"]

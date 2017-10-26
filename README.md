@@ -106,9 +106,9 @@ You have to be willing to accept:
 - `vault-unsealer` itself loses it's unseal keys (in memory) when it restarts (like Vault), so ideally `vault-unsealer` runs in multiple places and is monitored. An advantage of `vault-unsealer` is that it can be ran anywhere since it is just a client to Vault.
 
 ## Comparsion to other Vault "unsealers"
-* See [Comparison to other Vault "unsealers"](docs/comparison.md)
+* See [Comparison to other Vault "unsealers"](https://github.com/tallpauley/vault-unsealer/blob/master/docs/comparison.md)
 
 ## Security
 * Unseal keys are only in memory, inserted via HTTPS API
 * Like Vault, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk
-* See [Security](docs/security.md) for more discussion.
+* See [Security](https://github.com/tallpauley/vault-unsealer/blob/master/docs/security.md) for more discussion.

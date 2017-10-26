@@ -1,9 +1,9 @@
 SHELL := /bin/bash
 GO_VERSION := 1.9
-VERSION := v0.1-alpha
+VERSION := v0.1
 RELEASE_NAME := ${VERSION}
 RELEASE_DESCRIPTION :=
-PRE_RELEASE := true
+PRE_RELEASE := false
 
 .PHONY: install
 install:
@@ -14,8 +14,14 @@ install:
 build-dc:
 	docker-compose build --no-cache
 
+.PHONY: build-release
+build-release:
+	@rm -rf release
+	@gox -output "release/{{.Dir}}_{{.OS}}_{{.Arch}}/{{.Dir}}" -ldflags "-X main.Version=${VERSION}"
+
 .PHONY: publish-release
-publish-release: 
+publish-release: build-release
+	@if [ -z "${GITUB_TOKEN}" ]; then >&2 echo "ERROR: GITHUB_TOKEN not set"; exit 1; fi
 	@rm -rf release
 	@go get github.com/mitchellh/gox github.com/aktau/github-release
 	git tag ${VERSION} || true
@@ -32,7 +38,6 @@ publish-release:
     --name "${RELEASE_NAME}" \
     --description "${RELEASE_DESCRIPTION}" \
 	$$pre_release_arg
-	@gox -output "release/{{.Dir}}_{{.OS}}_{{.Arch}}/{{.Dir}}"
 	@for f in release/*; do \
 		zip -j -r $$f.zip $$f; \
 		github-release upload \

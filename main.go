@@ -148,8 +148,6 @@ func tryGenerateRootToken(client *vault.Client) error {
 // pollVault attempts to unseal vault, if vault is sealed and the minimum number of unseal keys are present
 func pollVault(client *vault.Client, tryGenerateRoot bool) {
 
-	rootGenerationTested = false
-
 	sys := client.Sys()
 
 	// not enough unseal keys to do anything yet
@@ -246,6 +244,7 @@ func server() {
 	unsealThreshold = status.T
 	go startServer(listenAddr, certPath, certKeyPath)
 
+	rootGenerationTested = false
 	for {
 		pollVault(client, tryGenerateRoot)
 		time.Sleep(time.Duration(pollingInterval) * time.Second)

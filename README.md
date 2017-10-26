@@ -45,16 +45,16 @@ $ export VAULT_UNSEALER_ADDR=https://localhost:8443
 ```
 # -skip-host-verification is ONLY for testing purposes
 $ vault-unsealer -add-key -skip-host-verification
-Enter Unseal Key:
+Enter Unseal Key: ********************************************
 1 of 3 required unseal keys
-...
 ```
 
 4. Switch back to the terminal w/ docker-compose, and notice that the vault has been unsealed:
 ```
-vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal key #1
-vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal key #2
-vault-unsealer_1   | 2017/09/08 21:46:50 main.go:155: Unsealing vault w/ unseal key #3
+vault-unsealer_1  | 2017/10/26 21:43:50 main.go:180: Attempting to unseal vault w/ unseal key #1
+vault-unsealer_1  | 2017/10/26 21:43:50 main.go:180: Attempting to unseal vault w/ unseal key #2
+vault-unsealer_1  | 2017/10/26 21:43:50 main.go:180: Attempting to unseal vault w/ unseal key #3
+vault-server_1    | 2017/10/26 21:43:50.099232 [INFO ] core: vault is unsealed
 ```
 
 5. Restart the vault container and notice how vault is automatically unsealed!

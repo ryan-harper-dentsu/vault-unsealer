@@ -294,7 +294,7 @@ func addKey(skipHostVerification bool) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf(string(response))
+	fmt.Println(string(response))
 }
 
 // status is a client function that queries for status of the vault-unsealer server
@@ -315,7 +315,7 @@ func status(skipHostVerification bool) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf(string(response))
+	fmt.Println(string(response))
 }
 
 // version prints version of the binary

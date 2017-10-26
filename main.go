@@ -80,8 +80,7 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // tryGenerateRootToken tries to create a root token and destroy it, to test that unseal keys actually work
-func tryGenerateRootToken() error {
-	client, err := vault.NewClient(vault.DefaultConfig())
+func tryGenerateRootToken(client *vault.Client) error {
 	sys := client.Sys()
 
 	defer sys.GenerateRootCancel()
@@ -153,14 +152,14 @@ func pollVault(client *vault.Client, tryGenerateRoot bool) {
 	if status.Sealed == false {
 		// if vault isn't sealed, we can optionally check the unseal keys work by generating root token
 		if tryGenerateRoot && !rootGenerationTested {
-			err := tryGenerateRootToken()
+			err := tryGenerateRootToken(client)
 			if err != nil {
 				log.Fatalln(err)
 			}
 		}
 	} else {
 		// TODO have a max retry policy if this happens repeatedly
-		log.Println("Attempting to unseal vault (if this happens repeatedly a key is incorrect or repeated)")
+		log.Println("Attempting to unseal vault (if this happens repeatedly a key is probably repeated)")
 		for num, unsealKey := range unsealKeys {
 			log.Printf("Unsealing vault w/ unseal key #%d", num+1)
 			_, err := sys.Unseal(unsealKey)

@@ -51,6 +51,16 @@ func logHTTP(handler http.Handler) http.Handler {
 	})
 }
 
+// containsString returns true if a string is in a slice
+func containsString(s []string, v string) bool {
+	for _, a := range s {
+		if a == v {
+			return true
+		}
+	}
+	return false
+}
+
 // handlerStatus is an HTTP handler that returns 200 if unsealed, or returns HTTP Internal Server Error
 func handlerStatus(w http.ResponseWriter, r *http.Request) {
 	if len(unsealKeys) < unsealThreshold {
@@ -67,15 +77,20 @@ func handlerAddKey(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println(err)
 	}
-	unsealKey := string(contents[:])
+	unsealKey := strings.TrimSpace(string(contents[:]))
 
 	if len(unsealKeys) >= unsealThreshold {
 		http.Error(w, fmt.Sprintf("unseal key threshold of %d already met", unsealThreshold), http.StatusInternalServerError)
 		return
 	}
 
+	if containsString(unsealKeys, unsealKey) {
+		http.Error(w, "error: this unseal key has already been added", http.StatusInternalServerError)
+		return
+	}
+
 	// TODO unseal keys is probably not synchronized, slight chance of race condition in key insertion
-	unsealKeys = append(unsealKeys, strings.TrimSpace(unsealKey))
+	unsealKeys = append(unsealKeys, unsealKey)
 	fmt.Fprintf(w, "%d of %d required unseal keys", len(unsealKeys), unsealThreshold)
 }
 
@@ -161,10 +176,8 @@ func pollVault(client *vault.Client, tryGenerateRoot bool) {
 			}
 		}
 	} else {
-		// TODO have a max retry policy if this happens repeatedly
-		log.Println("Attempting to unseal vault (if this happens repeatedly a key is probably repeated)")
 		for num, unsealKey := range unsealKeys {
-			log.Printf("Unsealing vault w/ unseal key #%d", num+1)
+			log.Printf("Attempting to unseal vault w/ unseal key #%d", num+1)
 			_, err := sys.Unseal(unsealKey)
 			if err != nil {
 				log.Fatalln(err)

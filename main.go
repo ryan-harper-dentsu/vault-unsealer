@@ -151,6 +151,9 @@ func pollVault(client *vault.Client, tryGenerateRoot bool) {
 
 	if status.Sealed == false {
 		// if vault isn't sealed, we can optionally check the unseal keys work by generating root token
+		// this is our ONLY way of checking if the unseal keys are actually correct
+		// if vault was sealed, and became unsealed after trying unseal we might assume the unseal keys in this vault-unsealer instance worked
+		// -- this is INCORRECT though, because the final unseal key might have been added from somewhere else
 		if tryGenerateRoot && !rootGenerationTested {
 			err := tryGenerateRootToken(client)
 			if err != nil {

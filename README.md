@@ -1,10 +1,10 @@
 
 # Vault Unsealer [![Docker Build Status](https://img.shields.io/docker/build/tallpauley/vault-unsealer.svg)]()
 
-A daemon that keeps your [Vault](https://vaultproject.io) unsealed. It's like having the required number of Vault admins always watching your Vault instance, ready to unseal it in a moment's notice.
+A daemon that keeps your [Hashicorp Vault](https://vaultproject.io) unsealed. It's like having the required number of Vault admins always watching your Vault instance, ready to unseal it in a moment's notice.
 
 ## How it Works
-- Vault admins independently and securely insert the required threshold number of unseal keys into `vault-unsealer` daemon via a **https API** (much like unsealing vault itself)
+- Vault admins independently and securely insert the required threshold number of unseal keys into `vault-unsealer` daemon via a **HTTPS API** (much like unsealing vault itself)
 - `vault-unsealer` polls a Vault instance for [seal status](https://www.vaultproject.io/api/system/seal-status.html)
 - when `vault-unsealer` detects the instance is sealed, it uses the in-memory unseal keys to unseal the vault instance
 
@@ -109,6 +109,6 @@ You have to be willing to accept:
 * See [Comparison to other Vault "unsealers"](docs/comparison.md)
 
 ## Security
-* Unseal keys are only in memory, inserted via `https` API
+* Unseal keys are only in memory, inserted via HTTPS API
 * Like Vault, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk
 * See [Security](docs/security.md) for more discussion.

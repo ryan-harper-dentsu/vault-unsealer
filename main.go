@@ -68,7 +68,7 @@ func handlerStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, fmt.Sprintf("%d of %d required unseal keys. Ready to unseal!", len(unsealKeys), unsealThreshold), http.StatusInternalServerError)
+	fmt.Fprintf(w, "%d of %d required unseal keys. Ready to unseal!", len(unsealKeys), unsealThreshold)
 }
 
 // handlerAddKey is an HTTP handler that accepts a payload of an unseal key

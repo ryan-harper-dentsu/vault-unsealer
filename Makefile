@@ -21,8 +21,7 @@ build-release:
 
 .PHONY: publish-release
 publish-release: build-release
-	@if [ -z "${GITUB_TOKEN}" ]; then >&2 echo "ERROR: GITHUB_TOKEN not set"; exit 1; fi
-	@rm -rf release
+	@if [ -z "${GITHUB_TOKEN}" ]; then >&2 echo "ERROR: GITHUB_TOKEN not set"; exit 1; fi
 	@go get github.com/mitchellh/gox github.com/aktau/github-release
 	git tag ${VERSION} || true
 	git push --tags

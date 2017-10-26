@@ -4,8 +4,10 @@
 
 # v0.1 (unreleased)
 * fixed bug in which vault-unsealer would become unresponsive due to polling loop
-* adding code documentation
+* fixed bug in which server mode wouldn't complain if memory couldn't be locked
 * main.go sha1sum is passed as main.Version parameter, allowing for easier identification of canary builds
+* added check for duplicate unseal keys
+* adding code documentation
 
 # v0.1-alpha
 * initial prototype

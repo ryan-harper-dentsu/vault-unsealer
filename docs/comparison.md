@@ -1,4 +1,4 @@
-# Comparison to other vault "unsealers"
+# Comparison to other Vault "unsealers"
 Here is a really basic comparison of my vault-unsealer to some other vault "unsealers" out there. Let me know if these need to be updated!
 
 |  tool  |  unseal key storage   |  limitations |

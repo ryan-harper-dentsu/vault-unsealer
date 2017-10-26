@@ -7,6 +7,7 @@
 * Root token generation is optional, known only to vault-unsealer, and thrown away immediately after being generated
     * Also, the only time a token is used for communication with vault is root token revocation.
 * Unseal keys or root tokens are **never** logged.
+* Like Vault, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk
 
 ## API Security
 

@@ -23,7 +23,7 @@ Install Go 1.9 and
 ```make install```
 
 ## Try it out
-The `docker-compose.yml` makes it easy to try `vault-unsealer`. Make sure `vault-unsealer` is installed and in your path and do the following:
+The `docker-compose.yml` makes it easy to try `vault-unsealer`. Make sure `vault-unsealer` is installed and in your path (for client usage) and do the following:
 
 1. Start vault-unsealer daemon & vault w/ `docker-compose`
 ```
@@ -97,15 +97,18 @@ Usage of vault-unsealer:
 
 `VAULT_UNSEALER_ADDR`: Hostname and port of vault-unsealer server/daemon. Such as `https://localhost:8443`.
 
-
 ## Tradeoffs
 You have to be willing to accept:
 - extra/alternate procedures to seal the vault (since vault-unsealer constantly unseals) such as:
   - shutting down `vault-unsealer` daemon(s) before sealing Vault
   - OR: we cut off access to Vault using an alternate method (like shutting down the Vault instance)
-- `vault-unsealer` polls on an interval and unseals a Vault instance accordingly-- you can't expect Vault to be unsealed 100% of the time, or immediate failover like when using an Vault HA storage backend
-- `vault-unsealer` itself loses it's unseal keys (in memory) when it restarts (like Vault), so ideally `vault-unsealer` runs somewhere where restarts are less frequent
+- `vault-unsealer` polls on an interval and unseals a Vault instance accordingly-- you can't expect Vault to be unsealed 100% of the time, or immediate failover like when using an Vault HA storage backend.
+- `vault-unsealer` itself loses it's unseal keys (in memory) when it restarts (like Vault), so ideally `vault-unsealer` runs in multiple places and is monitored. An advantage of `vault-unsealer` is that it can be ran anywhere since it is just a client to Vault.
+
+## Comparsion to other Vault "unsealers"
+* See [Comparison to other Vault "unsealers"](docs/comparison.md)
 
 ## Security
 * Unseal keys are only in memory, inserted via `https` API
 * Like Vault, it attempts to use `mlock` syscall to prevent unseal keys from being swapped to disk
+* See [Security](docs/security.md) for more discussion.
